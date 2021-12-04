@@ -25,16 +25,18 @@ class MusicCompLoss(nn.Module):
     
     def forward(self, y, x):
         """
-        y: output layer
-        x: input layer
-        q: quantized layer
+        Args:
+            y: Output layer
+            x: Input layer
+            q: Quantized layer
         """
+        
         ### CE Calculation ###
-        # Calculates the real part of the Fourier amplitude spectrum.
+        # Calculates the real part of the Fourier amplitude spectrum
         x_fft_full = torch.pow(torch.fft.rfft(x, n=len(self.time_win), dim=1).abs(), self.fft_win)
         y_fft_full = torch.pow(torch.fft.rfft(y, n=len(self.time_win), dim=1).abs(), self.fft_win)
 
-        # Makes sure we don't have values that are 0.
+        # Makes sure we don't have values that are 0
         x_fft_win = torch.clamp(x_fft_full, min=1e-16) 
         y_fft_win = torch.clamp(y_fft_full, min=1e-16) 
 
@@ -112,10 +114,10 @@ class Quantizer_func(torch.autograd.Function):
         inputs_below_qmin = torch.where(grad_output < q_min, torch.ones_like(grad_output), torch.zeros_like(grad_output))  # (1: <q_min | 0: >=q_min)
         inputs_above_qmax = torch.where(grad_output > q_max, torch.ones_like(grad_output), torch.zeros_like(grad_output))  # (1: >q_max | 0: =<q_max) 
 
-        # Subtracts the boolean arrays to determine where the gradient should be 1 and 0.
+        # Subtracts the boolean arrays to determine where the gradient should be 1 and 0
         quan_grad = torch.sub(torch.sub(torch.ones_like(grad_output),inputs_below_qmin), inputs_above_qmax)
 
-        # For some reason needs to return 5 things to work.
+        # For some reason needs to return 5 things to work
         return torch.mul(grad_output, quan_grad), None, None, None, None
 
 

@@ -6,7 +6,6 @@ import numpy as np
 from tqdm import tqdm
 from scipy.signal import windows
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
 # Custom packages
 import net
@@ -16,6 +15,10 @@ import loss
 
 
 def getFreqWin():
+    """
+    Window used for weighing the Fourier amplitude spectrum.
+    """
+
     win = 100*np.array([
         0.01001502, 0.02186158, 0.02468514, 0.02473119, 0.02344306,
         0.02420558, 0.02614269, 0.02733992, 0.027928  , 0.02808134,
@@ -35,15 +38,21 @@ def getFreqWin():
 
 
 def trainingLoop(model, dataloader, loss_func, learning_rate, n_epochs, device='cpu', desc='Default'):
+    """
+    The neural network training loop. This trains the autoencoder to compress the tracks.
 
-    # Prints the model parameters
-    # for param_tensor in model.state_dict():
-    #     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
+    Args:
+        model (nn.Module): The neural network description.
+        dataloader (torch.Dataloader): The custom pytorch dataloader.
+        loss_func (nn.Module): The loss function.
+        learning_rate (float): Learning rate.
+        n_epochs (int): Number of epochs.
+        device (str, optional): What device does the computations. Defaults to 'cpu'.
+        desc (str, optional): The name of the weights saved after each epoch. Defaults to 'Default'.
+    """
 
     model = model.to(device)
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
-
-    writer = SummaryWriter()
 
     for epoch in range(n_epochs):
         
@@ -51,7 +60,8 @@ def trainingLoop(model, dataloader, loss_func, learning_rate, n_epochs, device='
         mse_total = 0
         ce_total = 0
 
-        pbar = tqdm(total=len(dataloader), dynamic_ncols=True)
+        # Creates a neat progress bar
+        pbar = tqdm(total=len(dataloader), dynamic_ncols=True, desc=f'Epoch {epoch + 1}/{n_epochs}')
         for i, batch in enumerate(dataloader):
             
             # Resetting gradients
@@ -70,18 +80,17 @@ def trainingLoop(model, dataloader, loss_func, learning_rate, n_epochs, device='
             loss.backward()
             optimizer.step()
             
+            # Log losses for progress display
             loss_total += loss.item()
             mse_total += mse.item()
             ce_total += ce.item()
-
+            
+            # Only update tqdm sometimes to reduce cpu load
             if (i + 1) % 50 == 0:
-                writer.add_scalar(f'{desc}/{epoch + 1}/Loss', loss.item(), i)
-                writer.add_scalar(f'{desc}/{epoch + 1}/Loss_MSE', mse.item(), i)
-                writer.add_scalar(f'{desc}/{epoch + 1}/Loss_CE', ce.item(), i)
                 pbar.set_postfix({'Avg Loss':f'{loss_total/(i+1):.8f}' , 'Avg MSE': f'{mse_total/(i+1):.8f}', 'Avg CE': f'{ce_total/(i+1):.8f}'})
                 pbar.update(50)
 
-        ############## SAVING MODEL ###################
+        # Save model weights
         pbar.close()
         torch.save(model.state_dict(), f'weights_{desc}.pth')
 
@@ -90,63 +99,69 @@ if __name__ == '__main__':
     ##########################
     ### Dataset Parameters ###
     ##########################
+
     path = 'fma_small'              # Path to fma_small dataset (larger might also work)
     n_files = 2000                  # Number of files to be included in the training data
-    duration =  1                   # duration of each file in seconds, set to None if whole duration of music files should be included
-    offset = 10                     # from which second the sound file should load from, be careful wrt chosen duration contra offset
-
-    input_size = 2**7               # Window length of each input in samples
-    overlap = 0                     # Size of window overlap in samples
-    data_win_type = 'boxcar'        # Window type (Rectangular = boxcar)
-
-    norm_train_data = True          # Normalise training data (normalises each window in training set)
-    batch_size = 16                 # Batch size of training data
-    shuffle = True                  # Shuffle batches for every epoch
-
-    shuffle_paths = True            # Shuffle which music files to import
+    duration =  1                   # Second to include from track. Set to None for entire track
+    offset = 10                     # Seconds to start loading file from
+    shuffle_tracks = True           # Shuffle tracks
+    input_size = 2**7               # Framesize for dataloader        
+                                        #The dataloder "chops" each track into "frames" of this size. This means that this value determines how many samples are put into the network
+    overlap = 0                     # Number of overlapping samples 
+                                        # Determines if the dataloader should overlap the "frames"
+    data_win_type = 'boxcar'        # Window type applied to samples 
+                                        # Determines if the dataloader should apply a windows to each frame. Use boxcar (Rectangular) if no window is needed
+    norm_train_data = True          # Normalise samples
+                                        # If true, makes sure that the L2-norm of each "frame" is 1
+    batch_size = 16                 # Batch size
+    shuffle = True                  # Shuffle Batches
 
     ###############################
     ### Optimization Parameters ###
     ###############################
     n_epochs = 20                   # Number of epochs
     learning_rate = 1e-7            # Learning rate
-    beta  = 5e3                     # The weight of the noise exponential in loss func
-
+    beta  = 5e3                     # The weight of the MSE.
+                                        # The higher the value, the higher the MSE is weighted when calculating loss
     b = 8                           # Bit depth
-    q_interval = (-1,1)             # Quantization interval
+                                        # 2^b Discrete values produced by the quantiser
     q_nodes = 2**8                  # Number of neurons in quantization layer
+                                        # Defines the bit-rate together with the bit-depth. We are sending q_nodes*b bits
+    q_interval = (-1,1)             # Quantization interval/range
 
-    prev_state = ''                 # Path to previous model parameters. If empty the NN starts from scratch
+    prev_state = ''                 # Path to previous model parameters
+                                        # NOTE that the model must fit the weight, i.e. be the same as what generated the weights
 
     ########################
     ### Model Parameters ###
     ########################
     
-    # NOTE: len(conv_features) = #Conv_blocks, conv_feautures[i] = #channels
+    # Defines the number of convolution blocks to use, as well as the number of kernels/channels to use for each block
     conv_features = (
         input_size//4,
         input_size,
         input_size*4
     )
-    time_win_type = 'hann'
-    kernel_size = 11
+    time_win_type = 'hann'          # Window applied to the MSE
+                                        # When calculating the loss, a window is applied to the "frame" before calculating the MSE. To deter high frequency noise, this should weight the edge samples higher. NOTE that this is manually inverted later in the code
+    kernel_size = 11                # Kernel size
 
     ############################
     ### Dependent Parameters ###
     ############################
 
-
-
+    # If a Nvidia GPU is detected, use this instead of the CPU
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
     print(f'Using {device}!')
 
+    # Finds the paths to all the MP3-files and crops the list
     paths = utils.findPathsMP3(path)
-    if shuffle_paths:
-        random.seed('plosive voltages')
+    if shuffle_tracks:
+        random.seed('plosive voltages') # Hmm...
         random.shuffle(paths)
     paths = paths[:n_files]
 
+    # Generates the needed windows.
     data_win = windows.get_window(data_win_type, input_size)
 
     time_win = windows.get_window(time_win_type, input_size, fftbins=False)
@@ -161,17 +176,17 @@ if __name__ == '__main__':
     # Loss Function
     loss_func = loss.MusicCompLoss(beta, time_win, freq_win)
     
-    parameter_list = [[2**8,8],[2**3,16],[2**4,16],[2**5,16],[2**7,16]]
-    # for pars in parameter_list[-1]:
-    q_nodes, b = 2**7, 16
+    # Define the name of the weight file save after each epoch
     desc = f'Nodes_{q_nodes}__Depth_{b}'
-    print(f'Now training model with q_len={q_nodes} and b={b}')
+    print(f'Now training model with q_nodes={q_nodes} and b={b}')
     
     # Model
     model = net.NeuralNetConv(input_size, b, q_interval, q_nodes, kernel_size, conv_features)
 
+    # Loads the weights of a previous training
     if prev_state:
         model.load_state_dict(torch.load(prev_state))
         model.eval()
 
+    # Do the training
     trainingLoop(model, train_loader, loss_func, learning_rate, n_epochs, device=device, desc=desc)
