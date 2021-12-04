@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/images/aau_logo.png">
-</p>
+<img align="right" src="assets\images\aau_logo.png">
 
 # Information Bottleneck Principle Applied to PyTorch Autoencoder 
 
