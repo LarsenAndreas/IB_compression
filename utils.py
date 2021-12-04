@@ -61,16 +61,19 @@ def loadAllMP3s(paths, duration=None, offset=0.0):
     """
     Loads all the MP3 files from the given paths. Uses duration and offset to determine what part of the signal to load.
 
+    Utilizes p-tqdm to load the files in parallel and create a nice progress-bar at the same time. Fallback to sequencial on MacOS.
+
     Args:
-        paths (list): Paths to the MP3 files 
+        paths (list): Paths to the MP3 files .
         duration (float, optional): Only load up to this much audio (seconds). Defaults to None.
         offset (float, optional): Start reading after this time (seconds). Defaults to 0.0.
 
     Returns:
-        [type]: [description]
+        mp3s (list): List of np.array's which are the loaded files.
     """
 
     print('Loading Files...')
+    # There where problems using multiprocessing on M1 macs, therefore this check.
     if sys.platform == 'darwin':
         mp3s = [loadMP3(i, duration, repeat) for i in paths]
     else:
