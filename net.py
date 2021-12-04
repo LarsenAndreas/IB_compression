@@ -2,9 +2,23 @@ import torch
 import torch.nn as nn
 from loss import Quantizer
 
+
 class NeuralNetConv(nn.Module):
+    """
+    The neural net definition.
+
+        Args:
+            input_size (int): The "frame" length of the input.
+            b (int): Bit-Depth.
+            q_interval (tuple): Quantisation interval.
+            q_nodes (int): Nodes in the quantisation layer. 
+            kernel_size (int): Size of all the kernels.
+            channel_nums (tuple): Convolution block and channels/kernels utilized.
+            padding_mode (str, optional): How to pad. Defaults to 'zeros'.
+        """
     
     def __init__(self, input_size, b, q_interval, q_nodes, kernel_size, channel_nums, padding_mode='zeros'):
+        
         super(NeuralNetConv, self).__init__()
 
         # Encoding Layers
@@ -51,23 +65,21 @@ class NeuralNetConv(nn.Module):
     def forward(self, input):
 
         # Encoding layers
-        out = input.unsqueeze(1)
+        out = input.unsqueeze(1)  # Dimension fitting
         for block in self.enc_convblocks:
             out = block(out)  
-        out = torch.flatten(out, 1)
-
+        out = torch.flatten(out, 1)  # Dimension fitting
 
         # Quantisation layer
         out = self.quantize(out)
 
-
         # Decoding layers
         out = self.dec_prep(out)
-        out = out.unsqueeze(1)
+        out = out.unsqueeze(1)  # Dimension fitting
 
         for block in self.dec_convblocks:
             out = block(out)
-        out = torch.flatten(out, 1)
+        out = torch.flatten(out, 1)  # Dimension fitting
         
         out = self.dec_out(out)
 

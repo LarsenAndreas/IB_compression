@@ -2,11 +2,10 @@ import os
 import sys
 import warnings
 import librosa
-
 import numpy as np
-
 from itertools import repeat
 from p_tqdm import p_umap
+
 
 def findPathsMP3(folder, filetype='.mp3'):
     """

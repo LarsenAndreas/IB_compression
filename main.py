@@ -1,8 +1,6 @@
 import torch
 import random
-
 import numpy as np
-
 from tqdm import tqdm
 from scipy.signal import windows
 from torch.utils.data import DataLoader
@@ -136,7 +134,7 @@ if __name__ == '__main__':
     ### Model Parameters ###
     ########################
     
-    # Defines the number of convolution blocks to use, as well as the number of kernels/channels to use for each block
+    # Defines the number of convolution blocks to use, as well as the number of kernels/channels to use for each block. (len(conv_features) = number of convolution blocks | conv_features[i] = number of kernels)
     conv_features = (
         input_size//4,
         input_size,
