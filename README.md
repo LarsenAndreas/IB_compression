@@ -1,5 +1,3 @@
-<img align="right" src="assets\images\aau_logo.png">
-
 # Information Bottleneck Principle Applied to PyTorch Autoencoder 
 
 The main idea is to use the amplitude spectrum to generate the probability distributions used for the cross entropy. Combine this with the MSE and we have a *(unique)* loss function. 
